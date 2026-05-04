@@ -2,7 +2,9 @@ import { z } from "zod";
 
 export const QuestionZodSchema = z.object({
   questionNumber: z.number().describe("The sequential question number as listed in the exam paper."),
-  
+  year: z.number().describe("The 4-digit year the GATE exam was conducted (e.g., 2024)."),
+  session: z.enum(["morning", "evening", "afternoon"]).describe("The session number (e.g., morning, evening, afternoon)."),
+  Date: z.string().describe("The date of the GATE exam (e.g., '2023-09-25')."),
   type: z.enum(["MCQ", "MSQ", "NAT"]).describe(
     "The category of the question: 'MCQ' for Multiple Choice (single correct), " +
     "'MSQ' for Multiple Select (one or more correct), and 'NAT' for Numerical Answer Type."
@@ -41,7 +43,8 @@ export const QuestionZodSchema = z.object({
     "A list of relevant keywords for searching, such as specific theorems, formulas, or exam-specific labels."
   ),
 explaination:z.string().describe("The full explaination about how other option are wrong from the answer which correct one is the answer"),
-  year: z.number().describe("The 4-digit year the GATE exam was conducted (e.g., 2024)."),
 });
+
+
 
 export type Question = z.infer<typeof QuestionZodSchema>;

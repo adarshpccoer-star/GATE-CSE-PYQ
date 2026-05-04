@@ -1,121 +1,84 @@
-import { llm } from "./llm";
-import { QuestionZodSchema, type Question } from "./vaildtor";
 
-const GATE_SYSTEM_PROMPT = `You are an expert GATE (Graduate Aptitude Test for Engineering) exam parser. Your task is to extract structured data from raw question and answer text with high accuracy.
 
-CRITICAL RULES:
-1. QUESTION TYPE DETECTION:
-   - MCQ: Single correct answer (identifies as multiple choice with one option)
-   - MSQ: Multiple correct answers (explicitly states "Select one or more")
-   - NAT: Numerical Answer Type (answer is a number, not a letter option)
+// const response = await client.responses.create({
+import { zodResponseFormat, zodTextFormat } from "openai/helpers/zod.mjs";
+import { client } from "./llm";
+import { QuestionZodSchema,type Question } from "./vaildtor";
+const GATE_SYSTEM_PROMPT = `
+You are an expert parser for GATE exam questions.
 
-2. OPTIONS HANDLING:
-   - For MCQ/MSQ: Extract options labeled A, B, C, D exactly as written
-   - For NAT: Return empty object {}
-   - Clean HTML tags, extra whitespace, but preserve mathematical expressions
-   - Keep option text concise but complete
+Extract structured JSON exactly matching schema.
 
-3. ANSWER VALIDATION:
-   - MCQ: Return single letter (A, B, C, or D)
-   - MSQ: Return comma-separated letters (e.g., "A,C" or "B,D,E") - NO SPACES
-   - NAT: Return number (e.g., "45") or range (e.g., "10.5:10.7")
-   - Ensure answer exists in provided options (if MCQ/MSQ)
+RULES:
 
-4. MARKS & NEGATIVE MARKS:
-   - Standard GATE: +1 or +2 for correct, -1/3 or -2/3 for MCQ/MSQ wrong, 0 for NAT wrong
-   - Extract from problem statement if mentioned
-   - Default: 1 mark for 1-marker, 2 marks for 2-marker questions
+1. Detect type:
+- MCQ = one correct option
+- MSQ = multiple correct options
+- NAT = numerical answer
 
-5. DIFFICULTY ASSESSMENT:
-   - Easy: Direct recall, standard formula, single step (< 1 min)
-   - Medium: Requires reasoning, moderate conceptual depth (1-3 min)
-   - Hard: Multi-step, advanced application, tricky concepts (> 3 min)
+2. Options:
+- MCQ/MSQ => A,B,C,D keys only
+- NAT => {}
 
-6. SUBJECT & TOPIC:
-   - Subject: Broad category (CS, Electronics, Mechanical, etc.)
-   - Topic: Specific subtopic from GATE syllabus
-   - Be precise and standardized
+3. Answer:
+- MCQ => single letter
+- MSQ => comma-separated letters (A,C)
+- NAT => number or range (2.5 or 10.2:10.5)
 
-7. TAGS:
-   - Include 3-6 keywords covering: concepts, algorithms, theorems, techniques
-   - Make searchable and specific
-   - Lowercase recommended
-   - Examples: "dynamic programming", "DFS", "recursion", "tree traversal"
+4. Clean text:
+- Remove HTML/noise
+- Preserve formulas in LaTeX
 
-8. EXPLANATION:
-   - Why the chosen answer is correct
-   - Why each wrong option is incorrect (common mistakes)
-   - Relevant formulas, properties, or theorems
-   - Use LaTeX for math ($...$)
-   - 3-5 sentences minimum, clear and educational
+5. Difficulty:
+easy / medium / hard
 
-9. MATHEMATICAL EXPRESSIONS:
-   - Convert to LaTeX: inline math as $x = y$ or display as $$x = y$$
-   - Preserve ALL mathematical content accurately
-   - Check for fractions, integrals, summations, matrices, etc.
+6. Subject + topic:
+Use standard GATE syllabus names.
 
-10. SPECIAL CASES:
-    - Diagram-based questions: Note "Refer to diagram" in explanation if applicable
-    - Multi-part questions: Treat each independent subpart separately
-    - Questions with "Given" statements: Include context in explanation
-    - Decimal answers in NAT: Use format like "2.5" or "10.1:10.3" for ranges
+7. Tags:
+3 to 6 concise searchable tags.
 
-VALIDATION CHECKLIST BEFORE RETURNING:
-✓ Question type matches answer format
-✓ Answer is valid for the question type
-✓ Options are labeled A-D (if MCQ/MSQ)
-✓ All required fields populated
-✓ Explanation addresses all wrong options
-✓ LaTeX formatting correct
-✓ No HTML remnants in text
-✓ Tags are searchable keywords`;
+8. Explanation:
+- why correct answer is right
+- why others wrong
+- formulas if needed
+- minimum 3 sentences
 
-export default async function helper(
-  question: string,
-  answer: string
-): Promise<Question | null> {
+9. Never invent missing facts.
+Use null if unknown.
+`;
+
+export default async function helper(data: string): Promise<Question | null> {
   try {
-    // Validate inputs
-    if (!question?.trim() || !answer?.trim()) {
+    if (!data?.trim()) {
       console.error("Empty question or answer provided");
       return null;
     }
 
-    // Bind the schema to the LLM to force JSON output
-    const structuredLlm = llm.withStructuredOutput(QuestionZodSchema);
+    // Use parse instead of create for automatic Zod validation and parsing
+    const completion = await client.chat.completions.parse({
+      model: "gemma4:e2b", // Structured Outputs requires specific models
+      messages: [
+        { role: "system", content: GATE_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Extract and structure this GATE question, answer, option, and explanation:\n\nPYQ TEXT:\n${data}`,
+        },
+      ],
+     
+      response_format: zodResponseFormat(QuestionZodSchema, "gate_question"),
+    });
 
-    const result = await structuredLlm.invoke([
-      {
-        role: "system",
-        content: GATE_SYSTEM_PROMPT,
-      },
-      {
-        role: "user",
-        content: `Extract and structure this GATE question and answer:
+    const result = completion.choices[0].message.parsed;
 
-QUESTION TEXT:
-${question}
-
-ANSWER TEXT is parse of tabular formatted page with heading  Q. No.,Session, Q. Type ,SectionKey/Range ,Marks :
-${answer}
-
-Return a complete JSON object matching the schema. Ensure:
-1. Question type (MCQ/MSQ/NAT) is correctly identified
-2. Answer format matches the question type
-3. All fields are populated with accurate data
-4. Explanation is comprehensive and educational`,
-      },
-    ]);
-
-    // Post-validation (schema validation happens in zod)
     if (!result) {
-      console.error("LLM returned null result");
+      if (completion.choices[0].message.refusal) {
+        console.error("Model refused:", completion.choices[0].message.refusal);
+      }
       return null;
     }
 
-    // Optional: Additional logging for debugging
-    console.log(`Successfully parsed question ${result.qno}: ${result.type}`);
-
+    console.log(`Successfully parsed question ${result.questionNumber}: ${result.type}`);
     return result;
   } catch (error) {
     console.error("LLM Extraction Error:", error instanceof Error ? error.message : error);
