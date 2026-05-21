@@ -1,47 +1,33 @@
-import os
-import shutil
-from processors.text_parser import extract_clean_pages
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages # reducer to add messages without completely removing it
+from langchain_google_genai import ChatGoogleGenerativeAI
+from dotenv import load_dotenv
+from typing import Annotated
+from typing_extensions import TypedDict
+from langgraph.graph import START, END, StateGraph
+load_dotenv()
 
-app = FastAPI()
+class State(TypedDict):
+    messages:Annotated[list[AnyMessage],add_messages]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-@app.post("/process-pdfs")
-async def process_pdfs(questions: UploadFile = File(...)):
-   
-    if not questions.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="File must be a PDF")
+def llm_response(state:State):
+    model = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+    response = model.invoke(state["messages"])
+    # 2. Return a dictionary updating the 'messages' key
+    return {"messages": [response]}
 
-   
-    temp_path = f"temp_{questions.filename}"
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(questions.file, buffer)
+builder = StateGraph(State)
 
-    try:
-       
-        raw_pages = extract_clean_pages(temp_path)
-        
-        return {
-            "filename": questions.filename,
-            "page_count": len(raw_pages),
-            "data": raw_pages
-        }
+builder.add_node("llm",llm_response)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    finally:
-        # 5. Cleanup temp file
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+builder.add_edge(START,"llm")
+builder.add_edge("llm",END)
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+graph = builder.compile()
+
+# Invoke the graph
+response_state = graph.invoke({"messages": "what is 2+2"})
+
+# Extract the list of messages from the final state dictionary and print them
+for message in response_state["messages"]:
+    message.pretty_print()

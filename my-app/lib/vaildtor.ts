@@ -1,50 +1,33 @@
 import { z } from "zod";
 
 export const QuestionZodSchema = z.object({
-  questionNumber: z.number().describe("The sequential question number as listed in the exam paper."),
-  year: z.number().describe("The 4-digit year the GATE exam was conducted (e.g., 2024)."),
-  session: z.enum(["morning", "evening", "afternoon"]).describe("The session number (e.g., morning, evening, afternoon)."),
-  Date: z.string().describe("The date of the GATE exam (e.g., '2023-09-25')."),
-  type: z.enum(["MCQ", "MSQ", "NAT"]).describe(
-    "The category of the question: 'MCQ' for Multiple Choice (single correct), " +
-    "'MSQ' for Multiple Select (one or more correct), and 'NAT' for Numerical Answer Type."
-  ),
+  questionNumber: z.number().describe("The sequential question number."),
+  year: z.number().describe("The 4-digit year of the exam."),
+  session: z.enum(["morning", "evening", "afternoon"]),
+  Date: z.string().describe("The date of the exam."),
+  type: z.enum(["MCQ", "MSQ", "NAT"]),
 
-  questionText: z.string().describe(
-    "The full text of the question. Include any LaTeX formatting for mathematical expressions " +
-    "using $inline$ or $$display$$ syntax. Do not include the question number here."
-  ),
+  questionText: z.string().describe("The full text of the question using LaTeX for math."),
+  
+  // Image Extraction for Question
+  hasImage: z.boolean().describe("True if the question contains a diagram."),
+  // FIX: Removed .optional(), added .nullable()
+  questionImage: z.string().nullable().describe("The extracted base64 image or description of the diagram if present."),
 
-  options: z.record(z.string()).describe(
-    "For MCQ and MSQ, provide a map of options where keys are uppercase letters (A, B, C, D). " +
-    "Example: { 'A': '20', 'B': '40' }. For NAT, return an empty object {}."
-  ),
+  options: z.record(z.string()).describe("Map of options. Example: { 'A': 'text' }."),
+  
+  // Image Extraction for Options
+  optionsHaveImages: z.boolean().describe("True if options (A-D) contain diagrams."),
+  // FIX: This was already .nullable(), but ensure .optional() is removed if it was there
+  optionImages: z.record(z.string()).nullable().describe("A map of extracted images for each option key."),
 
-  answer: z.string().describe(
-    "For MCQ, the single letter (e.g., 'A'). For MSQ, a comma-separated list of letters (e.g., 'A,C'). " +
-    "For NAT, the numerical value or range (e.g., '45' or '10.5:10.7')."
-  ),
-
-  marks: z.number().describe("The marks assigned to this question (usually 1 or 2)."),
-
-  difficulty: z.enum(["easy", "medium", "hard"]).describe(
-    "An assessment of the question's complexity based on the depth of concepts required."
-  ),
-
-  subject: z.string().describe(
-    "The broad GATE subject name (e.g., 'Computer Science', 'Mathematics', 'General Aptitude')."
-  ),
-
-  topic: z.string().describe(
-    "The specific sub-topic from the GATE syllabus (e.g., 'Eigenvalues', 'TCP/IP', 'Time and Work')."
-  ),
-
-  tags: z.array(z.string()).describe(
-    "A list of relevant keywords for searching, such as specific theorems, formulas, or exam-specific labels."
-  ),
-explaination:z.string().describe("The full explaination about how other option are wrong from the answer which correct one is the answer"),
+  answer: z.string().describe("The correct choice(s) or NAT value."),
+  marks: z.number(),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  subject: z.string(),
+  topic: z.string(),
+  tags: z.array(z.string()),
+  explanation: z.string().describe("Full step-by-step reasoning.")
 });
-
-
 
 export type Question = z.infer<typeof QuestionZodSchema>;

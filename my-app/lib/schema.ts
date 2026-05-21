@@ -17,11 +17,21 @@ const QuestionsSchema = new Schema<Question>(
       enum: ["MCQ", "MSQ", "NAT"],
     },
     questionText: { type: String, required: true },
+    
+    // New Image Fields
+    hasImage: { type: Boolean, default: false },
+    questionImage: { type: String },
+    
     options: {
-      type: Schema.Types.Mixed, // Better for key-value pairs like { A: "..." }
+      type: Schema.Types.Mixed,
       required: true,
       default: {},
     },
+    
+    // New Option Image Fields
+    optionsHaveImages: { type: Boolean, default: false },
+    optionImages: { type: Schema.Types.Mixed },
+
     answer: { type: String, required: true },
     marks: { type: Number, required: true },
     difficulty: {
@@ -29,13 +39,13 @@ const QuestionsSchema = new Schema<Question>(
       required: true,
       enum: ["easy", "medium", "hard"],
     },
-    subject: { type: String, required: true, index: true }, // Index for fast filtering
+    subject: { type: String, required: true, index: true },
     topic: { type: String, required: true },
     tags: { type: [String], required: true },
+    explanation: { type: String, required: true }, // Corrected spelling to match validator
   },
   { timestamps: true },
 );
 
-// Prevent model overwrite during Next.js Hot Reloading
 export const QuestionModel =
   models.Question || model<Question>("Question", QuestionsSchema);
