@@ -5,3 +5,5 @@ langchain_community
 langchain_core
 langchain_openai
 tavily-python
+streamlit 
+faiss-cpu
