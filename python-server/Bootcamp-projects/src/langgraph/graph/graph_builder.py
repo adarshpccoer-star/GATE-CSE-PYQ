@@ -4,6 +4,9 @@ from src.langgraph.nodes.basic_chatbot import BasicChatBot
 from src.langgraph.tools.search_tools import get_tools ,create_tool_node
 from langgraph.prebuilt import tools_condition,ToolNode
 from src.langgraph.nodes.chat_with_tool import ChatBotWithTools
+from src.langgraph.nodes.ai_news_node import AINewsNode
+
+
 class GraphBuilder:
     def __init__(self, model):
         self.llm = model
@@ -33,18 +36,32 @@ class GraphBuilder:
 
 
 
+    def ai_news_builder_graph(self):
+        ai_news_node = AINewsNode(self.llm)
+        self.graph_builder.add_node("fetch_news", ai_news_node.fetch_news)
+        self.graph_builder.add_node("summarise_news", ai_news_node.summarize_news)
+        self.graph_builder.add_node("save_results", ai_news_node.save_result)
+
+        self.graph_builder.add_edge(START, "fetch_news")
+        self.graph_builder.add_edge("fetch_news", "summarise_news")
+        self.graph_builder.add_edge("summarise_news", "save_results")
+        self.graph_builder.add_edge( "save_results",END)
+        return self.graph_builder.compile()
+    
+     
     def setup_graph(self, usecase: str):
         if not usecase:
             return None
             
-        # Normalize the usecase string to avoid casing and whitespace bugs
-        clean_usecase = usecase.strip().lower()
+        
+        clean_usecase = usecase.strip()
         
         if clean_usecase == "basic chatbot":
             return self.basic_chatbot_build_graph()
         if clean_usecase == "chatbot with web":
             return self.chatbot_with_tools_build_graph()
             
+        if clean_usecase == "AI News":
+            return self.ai_news_builder_graph()            
         return None
     
-     
