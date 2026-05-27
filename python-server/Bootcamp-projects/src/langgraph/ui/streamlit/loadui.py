@@ -1,6 +1,6 @@
 import streamlit as st
 from src.langgraph.ui.uiconfigfile import Config
-
+import os
 
 class LoadStreamlitUI:
     def __init__(self):
@@ -56,5 +56,21 @@ class LoadStreamlitUI:
                 "Select Use Case",
                 usecase_options
             )
+
+            if self.user_controls["select_usecase"] == "chatbot with web":
+                tavily_key = st.text_input(
+                  "Enter Tavily API Key",
+                  type="password",
+                 placeholder="tavily_..."
+                 )
+    
+                self.user_controls["TAVILY_API_KEY"] = tavily_key
+                st.session_state["TAVILY_API_KEY"] = tavily_key
+
+            # Dynamically inject into environment variables for TavilySearchAPIWrapper to find
+                if tavily_key:
+                 os.environ["TAVILY_API_KEY"] = tavily_key
+                else:
+                 st.warning("Please enter your Tavily API Key")
 
         return self.user_controls

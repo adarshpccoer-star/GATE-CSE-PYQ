@@ -1,4 +1,4 @@
-from src.langgraph.main import load_langgraph_ui
+from src.langgraph.main import main
 
 if __name__ == "__main__":
-    load_langgraph_ui()
+    main()
